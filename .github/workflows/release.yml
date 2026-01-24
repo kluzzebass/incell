@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build-macos:
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -65,15 +65,99 @@ jobs:
           fi
           ./scripts/release_cask.sh
 
-      - name: Create GitHub release and upload zip
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            dist/Incell-*.zip
+            dist/cask.rb
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build
+        run: |
+          $VERSION = "${{ github.ref_name }}".TrimStart("v")
+          go build -ldflags="-H windowsgui -X incell/internal/version.Version=$VERSION" -o "dist/Incell-${VERSION}-windows.exe" ./cmd/incell
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/*.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libasound2-dev
+
+      - name: Build
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -ldflags="-X incell/internal/version.Version=$VERSION" -o "dist/Incell-${VERSION}-linux-amd64" ./cmd/incell
+          chmod +x "dist/Incell-${VERSION}-linux-amd64"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/Incell-*-linux-*
+
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub release and upload assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ZIP_PATH="$(ls dist/Incell-*.zip | head -n 1)"
-          VERSION="$(ruby -ne 'puts $1 if $_ =~ /version \"([^\"]+)\"/' dist/cask.rb | head -n 1)"
-          TAG="v${VERSION}"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" "$ZIP_PATH" --title "$TAG" --notes "Automated release"
-          gh release upload "$TAG" "$ZIP_PATH" --clobber
+          TAG="${GITHUB_REF_NAME}"
+
+          # Create release if it doesn't exist
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Automated release"
+
+          # Upload macOS zip
+          for f in artifacts/macos-build/Incell-*.zip; do
+            [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber
+          done
+
+          # Upload Windows executable
+          for f in artifacts/windows-build/*.exe; do
+            [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber
+          done
+
+          # Upload Linux binary
+          for f in artifacts/linux-build/Incell-*-linux-*; do
+            [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber
+          done
 
       - name: Update tap repository
         env:
@@ -88,7 +172,7 @@ jobs:
           TAP_DIR="$(mktemp -d)"
           git clone "https://$TAP_TOKEN@github.com/$TAP_REPO.git" "$TAP_DIR"
           mkdir -p "$TAP_DIR/Casks"
-          cp dist/cask.rb "$TAP_DIR/Casks/incell.rb"
+          cp artifacts/macos-build/cask.rb "$TAP_DIR/Casks/incell.rb"
           cd "$TAP_DIR"
           git add Casks/incell.rb
           if git diff --cached --quiet; then
