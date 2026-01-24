@@ -6,6 +6,10 @@ FreeCell with a twist.
 
 ![Screenshot](resources/screenshot.png)
 
+## Play Online
+
+[Play in your browser](https://kluzzebass.github.io/incell/) — no installation required.
+
 ## Installation
 
 ### macOS (Homebrew)
