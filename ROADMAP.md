@@ -10,4 +10,4 @@
 - [ ] Highlight valid drop targets when dragging
 
 ## Advanced
-- [ ] Save/resume game on quit
+- [x] Save/resume game on quit
