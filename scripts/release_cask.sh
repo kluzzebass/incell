@@ -47,7 +47,7 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 echo "Building Go binary..."
-CGO_ENABLED=1 go build -o "$MACOS_DIR/$APP_NAME" ./cmd/incell
+CGO_ENABLED=1 go build -ldflags="-X incell/internal/version.Version=$VERSION" -o "$MACOS_DIR/$APP_NAME" ./cmd/incell
 
 echo "Creating icns from icon..."
 ICONSET_DIR="$DIST_DIR/icon.iconset"

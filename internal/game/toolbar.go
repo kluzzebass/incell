@@ -4,6 +4,7 @@ import (
 	"bytes"
 	img "image"
 	"image/color"
+	"incell/internal/version"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -493,6 +494,14 @@ func showAboutDialog(u *UI) {
 	// Title
 	content.AddChild(widget.NewText(
 		widget.TextOpts.Text("Incell", &toolbarFace, color.RGBA{255, 215, 0, 255}),
+		widget.TextOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+			Position: widget.RowLayoutPositionCenter,
+		})),
+	))
+
+	// Version
+	content.AddChild(widget.NewText(
+		widget.TextOpts.Text("Version "+version.Version, &toolbarFace, color.RGBA{180, 180, 180, 255}),
 		widget.TextOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
 			Position: widget.RowLayoutPositionCenter,
 		})),
