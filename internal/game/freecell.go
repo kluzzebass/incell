@@ -101,6 +101,12 @@ func (g *FreeCell) Deal(iGetIt bool) {
 // MaxMovableCards returns the maximum number of cards that can be moved as a stack
 // Based on the number of empty free cells and empty tableau columns
 func (g *FreeCell) MaxMovableCards() int {
+	return g.MaxMovableCardsTo(-1)
+}
+
+// MaxMovableCardsTo returns the maximum number of cards that can be moved to a specific column
+// If destCol is an empty column, it's excluded from the count since we can't use it as intermediate storage
+func (g *FreeCell) MaxMovableCardsTo(destCol int) int {
 	emptyFreeCells := 0
 	for _, fc := range g.FreeCells {
 		if fc == nil {
@@ -109,9 +115,12 @@ func (g *FreeCell) MaxMovableCards() int {
 	}
 
 	emptyTableau := 0
-	for _, t := range g.Tableau {
+	for i, t := range g.Tableau {
 		if len(t) == 0 {
-			emptyTableau++
+			// Don't count destination column as available for intermediate storage
+			if i != destCol {
+				emptyTableau++
+			}
 		}
 	}
 
@@ -184,6 +193,12 @@ func (g *FreeCell) CanMoveToTableau(cards []Card, colIdx int) bool {
 	if colIdx < 0 || colIdx >= NumTableau || len(cards) == 0 {
 		return false
 	}
+
+	// Check if we have enough capacity to move this many cards
+	if len(cards) > g.MaxMovableCardsTo(colIdx) {
+		return false
+	}
+
 	pile := g.Tableau[colIdx]
 	if len(pile) == 0 {
 		return true // Any card can go on empty column
