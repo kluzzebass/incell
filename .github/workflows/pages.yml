@@ -24,10 +24,18 @@ jobs:
         with:
           go-version: "1.23"
 
+      - name: Get latest version
+        id: version
+        run: |
+          VERSION=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "dev")
+          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Build WASM
         run: |
           mkdir -p dist
-          GOOS=js GOARCH=wasm go build -o dist/incell.wasm ./cmd/incell
+          GOOS=js GOARCH=wasm go build -ldflags="-X incell/internal/version.Version=${{ steps.version.outputs.version }}" -o dist/incell.wasm ./cmd/incell
           cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/
           cat > dist/index.html << 'EOF'
           <!DOCTYPE html>
