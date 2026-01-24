@@ -588,22 +588,6 @@ func (g *FreeCell) FindAllHints() []Position {
 		}
 	}
 
-	// Last resort: move to empty tableau or free cell
-	for col := 0; col < NumTableau; col++ {
-		pile := g.Tableau[col]
-		if len(pile) == 0 {
-			continue
-		}
-		topIdx := len(pile) - 1
-		// Can move to empty free cell?
-		for i := 0; i < NumFreeCells; i++ {
-			if g.FreeCells[i] == nil {
-				addHint(Position{Location: LocTableau, Index: col, CardIdx: topIdx})
-				break // Only need one valid destination
-			}
-		}
-	}
-
 	return hints
 }
 
