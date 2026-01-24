@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build-macos:
@@ -210,3 +212,58 @@ jobs:
           git -c user.name="github-actions" -c user.email="github-actions@github.com" \
             commit -m "Update incell cask to ${VERSION}"
           git push
+
+  deploy-pages:
+    needs: [release]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build WASM for Pages
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          GOOS=js GOARCH=wasm go build -ldflags="-X incell/internal/version.Version=$VERSION" -o dist/incell.wasm ./cmd/incell
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/
+          cp internal/assets/icon.png dist/favicon.png
+          cat > dist/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Incell - FreeCell with a twist</title>
+              <link rel="icon" type="image/png" href="favicon.png">
+              <style>
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  html, body { height: 100%; background: #1a1a2e; overflow: hidden; }
+              </style>
+          </head>
+          <body>
+              <script src="wasm_exec.js"></script>
+              <script>
+                  const go = new Go();
+                  WebAssembly.instantiateStreaming(fetch("incell.wasm"), go.importObject)
+                      .then(result => go.run(result.instance));
+              </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
