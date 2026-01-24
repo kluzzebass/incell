@@ -227,6 +227,10 @@ func (u *UI) updateAnimations() {
 		if u.pendingAuto && !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			u.pendingAuto = false
 			u.doNextAutoMove()
+			// If no more auto-moves pending, save state
+			if !u.pendingAuto {
+				u.game.SaveState()
+			}
 		}
 		return
 	}
