@@ -4,6 +4,10 @@ import (
 	"bytes"
 	img "image"
 	"image/color"
+	"math/rand"
+	"os"
+	"os/exec"
+	"runtime"
 
 	"github.com/ebitenui/ebitenui"
 	"github.com/ebitenui/ebitenui/image"
@@ -24,8 +28,12 @@ var (
 	helpContent    *widget.Container
 	aboutWindow    *widget.Window
 	aboutContent   *widget.Container
+	optionsWindow  *widget.Window
+	optionsContent *widget.Container
 	lastScreenW    int
 	lastScreenH    int
+	undoBtn        *widget.Button
+	hintBtn        *widget.Button
 )
 
 func initToolbar(u *UI) {
@@ -48,25 +56,42 @@ func buildToolbar(u *UI) {
 		Pressed: createRoundedButtonImage(color.RGBA{30, 60, 40, 255}, buttonRadius),
 	}
 
-	textColor := &widget.ButtonTextColor{
-		Idle:  color.RGBA{200, 200, 200, 255},
-		Hover: color.RGBA{255, 255, 255, 255},
-	}
-
 	padding := &widget.Insets{Left: 12, Right: 12, Top: 6, Bottom: 6}
+
+	textColor := &widget.ButtonTextColor{
+		Idle:     color.RGBA{220, 220, 220, 255},
+		Disabled: color.RGBA{130, 130, 130, 255},
+	}
 
 	// Create buttons
 	newBtn := widget.NewButton(
 		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.TextColor(textColor),
 		widget.ButtonOpts.Text("New", &toolbarFace, textColor),
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
-			showConfirmDialog(u)
+			// Skip confirmation if game is already over (won or lost)
+			if u.game.IsWon() || u.gameOver {
+				u.game.Deal(u.iGetIt)
+				u.gameOver = false
+				u.gameOverFade = 0
+				u.particles = nil
+				u.tryAutoMove()
+			} else {
+				showConfirmDialog(u, "Start a new game?", func() {
+					u.game.Deal(u.iGetIt)
+					u.gameOver = false
+					u.gameOverFade = 0
+					u.particles = nil
+					u.tryAutoMove()
+				})
+			}
 		}),
 	)
 
-	undoBtn := widget.NewButton(
+	undoBtn = widget.NewButton(
 		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.TextColor(textColor),
 		widget.ButtonOpts.Text("Undo", &toolbarFace, textColor),
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
@@ -74,20 +99,58 @@ func buildToolbar(u *UI) {
 		}),
 	)
 
-	// Auto toggle button with checkbox graphic
-	checkboxImg := createCheckboxImage(u.autoMove)
-	autoBtn := widget.NewButton(
+	hintBtn = widget.NewButton(
 		widget.ButtonOpts.Image(buttonImage),
-		widget.ButtonOpts.TextAndImage("Auto Move", &toolbarFace, &widget.GraphicImage{Idle: checkboxImg, Disabled: checkboxImg}, textColor),
+		widget.ButtonOpts.TextColor(textColor),
+		widget.ButtonOpts.Text("Hint", &toolbarFace, textColor),
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
-			u.autoMove = !u.autoMove
-			buildToolbar(u)
+			// Get all available hints
+			hints := u.game.FindAllHints()
+			if len(hints) == 0 {
+				return
+			}
+
+			// Cycle to next hint
+			u.hintIndex = (u.hintIndex + 1) % len(hints)
+			pos := hints[u.hintIndex]
+
+			// Get the card at this position
+			var card Card
+			switch pos.Location {
+			case LocFreeCell:
+				if u.game.FreeCells[pos.Index] != nil {
+					card = *u.game.FreeCells[pos.Index]
+				}
+			case LocTableau:
+				pile := u.game.Tableau[pos.Index]
+				if pos.CardIdx < len(pile) {
+					card = pile[pos.CardIdx]
+				}
+			}
+
+			// Add a new wiggle animation (allows multiple wiggles at once)
+			u.cardWiggles = append(u.cardWiggles, CardWiggle{
+				Card:  card,
+				Time:  0,
+				Phase: rand.Float64() * 2, // Random starting phase
+			})
+		}),
+	)
+
+	optionsBtn := widget.NewButton(
+		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.TextColor(textColor),
+		widget.ButtonOpts.Text("Options", &toolbarFace, textColor),
+		widget.ButtonOpts.TextPadding(padding),
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			showOptionsDialog(u)
 		}),
 	)
 
 	helpBtn := widget.NewButton(
 		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.TextColor(textColor),
 		widget.ButtonOpts.Text("Help", &toolbarFace, textColor),
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
@@ -97,10 +160,23 @@ func buildToolbar(u *UI) {
 
 	aboutBtn := widget.NewButton(
 		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.TextColor(textColor),
 		widget.ButtonOpts.Text("About", &toolbarFace, textColor),
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
 			showAboutDialog(u)
+		}),
+	)
+
+	quitBtn := widget.NewButton(
+		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.TextColor(textColor),
+		widget.ButtonOpts.Text("Quit", &toolbarFace, textColor),
+		widget.ButtonOpts.TextPadding(padding),
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			showConfirmDialog(u, "Quit game?", func() {
+				os.Exit(0)
+			})
 		}),
 	)
 
@@ -121,9 +197,11 @@ func buildToolbar(u *UI) {
 
 	toolbar.AddChild(newBtn)
 	toolbar.AddChild(undoBtn)
-	toolbar.AddChild(autoBtn)
+	toolbar.AddChild(hintBtn)
+	toolbar.AddChild(optionsBtn)
 	toolbar.AddChild(helpBtn)
 	toolbar.AddChild(aboutBtn)
+	toolbar.AddChild(quitBtn)
 
 	// Root container
 	root := widget.NewContainer(
@@ -134,7 +212,7 @@ func buildToolbar(u *UI) {
 	toolbarUI = &ebitenui.UI{Container: root}
 }
 
-func showConfirmDialog(u *UI) {
+func showConfirmDialog(u *UI, message string, onYes func()) {
 	if toolbarUI.IsWindowOpen(confirmWindow) {
 		return
 	}
@@ -171,7 +249,7 @@ func showConfirmDialog(u *UI) {
 
 	// Message
 	content.AddChild(widget.NewText(
-		widget.TextOpts.Text("Start a new game?", &toolbarFace, color.RGBA{220, 220, 220, 255}),
+		widget.TextOpts.Text(message, &toolbarFace, color.RGBA{220, 220, 220, 255}),
 		widget.TextOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
 			Position: widget.RowLayoutPositionCenter,
 		})),
@@ -193,9 +271,8 @@ func showConfirmDialog(u *UI) {
 		widget.ButtonOpts.Text("Yes", &toolbarFace, textColor),
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
-			u.game.Deal()
-			u.tryAutoMove()
 			confirmWindow.Close()
+			onYes()
 		}),
 	)
 
@@ -222,6 +299,168 @@ func showConfirmDialog(u *UI) {
 	confirmContent = content
 	centerWindow(confirmWindow, confirmContent)
 	toolbarUI.AddWindow(confirmWindow)
+}
+
+var iGetItChangedToTrue bool
+
+func showOptionsDialog(u *UI) {
+	showOptionsDialogInternal(u, false)
+}
+
+func showOptionsDialogInternal(u *UI, isReopen bool) {
+	if toolbarUI.IsWindowOpen(optionsWindow) {
+		return
+	}
+
+	if !isReopen {
+		iGetItChangedToTrue = false
+	}
+
+	const dialogButtonRadius float32 = 4
+	buttonImage := &widget.ButtonImage{
+		Idle:    createRoundedButtonImage(color.RGBA{50, 90, 60, 255}, dialogButtonRadius),
+		Hover:   createRoundedButtonImage(color.RGBA{70, 120, 80, 255}, dialogButtonRadius),
+		Pressed: createRoundedButtonImage(color.RGBA{40, 70, 50, 255}, dialogButtonRadius),
+	}
+
+	textColor := &widget.ButtonTextColor{
+		Idle:  color.RGBA{220, 220, 220, 255},
+		Hover: color.RGBA{255, 255, 255, 255},
+	}
+
+	// Window content - use AnchorLayout for close button at bottom
+	content := widget.NewContainer(
+		widget.ContainerOpts.BackgroundImage(createRoundedButtonImage(color.RGBA{30, 50, 35, 255}, 8)),
+		widget.ContainerOpts.Layout(widget.NewAnchorLayout(
+			widget.AnchorLayoutOpts.Padding(&widget.Insets{Left: 40, Right: 40, Top: 25, Bottom: 25}),
+		)),
+		widget.ContainerOpts.WidgetOpts(
+			widget.WidgetOpts.MinSize(280, 180),
+		),
+	)
+
+	// Options container at top
+	optionsContainer := widget.NewContainer(
+		widget.ContainerOpts.Layout(widget.NewRowLayout(
+			widget.RowLayoutOpts.Direction(widget.DirectionVertical),
+			widget.RowLayoutOpts.Spacing(15),
+		)),
+		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.AnchorLayoutData{
+			HorizontalPosition: widget.AnchorLayoutPositionStart,
+			VerticalPosition:   widget.AnchorLayoutPositionStart,
+			StretchHorizontal:  true,
+		})),
+	)
+
+	// Title
+	optionsContainer.AddChild(widget.NewText(
+		widget.TextOpts.Text("Options", &toolbarFace, color.RGBA{255, 215, 0, 255}),
+		widget.TextOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+			Position: widget.RowLayoutPositionCenter,
+		})),
+	))
+
+	// Auto Move checkbox - use container with checkbox + label
+	autoMoveRow := widget.NewContainer(
+		widget.ContainerOpts.Layout(widget.NewRowLayout(
+			widget.RowLayoutOpts.Direction(widget.DirectionHorizontal),
+			widget.RowLayoutOpts.Spacing(8),
+		)),
+		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+			Position: widget.RowLayoutPositionStart,
+		})),
+	)
+	checkboxImg := createCheckboxImage(u.autoMove)
+	autoMoveCheckbox := widget.NewButton(
+		widget.ButtonOpts.Image(&widget.ButtonImage{
+			Idle:    image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+			Hover:   image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+			Pressed: image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+		}),
+		widget.ButtonOpts.Graphic(&widget.GraphicImage{Idle: checkboxImg, Disabled: checkboxImg}),
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			u.autoMove = !u.autoMove
+			SaveSettings(Settings{AutoMove: u.autoMove, IGetIt: u.iGetIt})
+			optionsWindow.Close()
+			showOptionsDialogInternal(u, true)
+		}),
+	)
+	autoMoveLabel := widget.NewText(
+		widget.TextOpts.Text("Auto Move", &toolbarFace, color.RGBA{220, 220, 220, 255}),
+	)
+	autoMoveRow.AddChild(autoMoveCheckbox)
+	autoMoveRow.AddChild(autoMoveLabel)
+	optionsContainer.AddChild(autoMoveRow)
+
+	// "I get it, very funny" checkbox
+	iGetItRow := widget.NewContainer(
+		widget.ContainerOpts.Layout(widget.NewRowLayout(
+			widget.RowLayoutOpts.Direction(widget.DirectionHorizontal),
+			widget.RowLayoutOpts.Spacing(8),
+		)),
+		widget.ContainerOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+			Position: widget.RowLayoutPositionStart,
+		})),
+	)
+	iGetItImg := createCheckboxImage(u.iGetIt)
+	iGetItCheckbox := widget.NewButton(
+		widget.ButtonOpts.Image(&widget.ButtonImage{
+			Idle:    image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+			Hover:   image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+			Pressed: image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+		}),
+		widget.ButtonOpts.Graphic(&widget.GraphicImage{Idle: iGetItImg, Disabled: iGetItImg}),
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			u.iGetIt = !u.iGetIt
+			if u.iGetIt {
+				iGetItChangedToTrue = true
+			}
+			SaveSettings(Settings{AutoMove: u.autoMove, IGetIt: u.iGetIt})
+			optionsWindow.Close()
+			showOptionsDialogInternal(u, true)
+		}),
+	)
+	iGetItLabel := widget.NewText(
+		widget.TextOpts.Text("I get it, very funny", &toolbarFace, color.RGBA{220, 220, 220, 255}),
+	)
+	iGetItRow.AddChild(iGetItCheckbox)
+	iGetItRow.AddChild(iGetItLabel)
+	optionsContainer.AddChild(iGetItRow)
+	content.AddChild(optionsContainer)
+
+	// Close button anchored at bottom center
+	padding := &widget.Insets{Left: 16, Right: 16, Top: 8, Bottom: 8}
+	closeBtn := widget.NewButton(
+		widget.ButtonOpts.Image(buttonImage),
+		widget.ButtonOpts.Text("Close", &toolbarFace, textColor),
+		widget.ButtonOpts.TextPadding(padding),
+		widget.ButtonOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.AnchorLayoutData{
+			HorizontalPosition: widget.AnchorLayoutPositionCenter,
+			VerticalPosition:   widget.AnchorLayoutPositionEnd,
+		})),
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			optionsWindow.Close()
+			if iGetItChangedToTrue {
+				u.game.Deal(u.iGetIt)
+				u.gameOver = false
+				u.gameOverFade = 0
+				u.particles = nil
+				u.tryAutoMove()
+			}
+		}),
+	)
+	content.AddChild(closeBtn)
+
+	// Create window
+	optionsWindow = widget.NewWindow(
+		widget.WindowOpts.Contents(content),
+		widget.WindowOpts.Modal(),
+		widget.WindowOpts.CloseMode(widget.NONE),
+	)
+
+	optionsContent = content
+	centerWindow(optionsWindow, optionsContent)
+	toolbarUI.AddWindow(optionsWindow)
 }
 
 func showAboutDialog(u *UI) {
@@ -266,6 +505,27 @@ func showAboutDialog(u *UI) {
 			Position: widget.RowLayoutPositionCenter,
 		})),
 	))
+
+	// Repo link (styled as a text button)
+	linkColor := &widget.ButtonTextColor{
+		Idle:  color.RGBA{100, 200, 255, 255},
+		Hover: color.RGBA{255, 255, 255, 255},
+	}
+	linkBtn := widget.NewButton(
+		widget.ButtonOpts.Image(&widget.ButtonImage{
+			Idle:    image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+			Hover:   image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+			Pressed: image.NewNineSliceColor(color.RGBA{0, 0, 0, 0}),
+		}),
+		widget.ButtonOpts.Text("github.com/kluzzebass/incell", &toolbarFace, linkColor),
+		widget.ButtonOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+			Position: widget.RowLayoutPositionCenter,
+		})),
+		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
+			openURL("https://github.com/kluzzebass/incell")
+		}),
+	)
+	content.AddChild(linkBtn)
 
 	// Close button
 	padding := &widget.Insets{Left: 16, Right: 16, Top: 8, Bottom: 8}
@@ -408,6 +668,21 @@ Move all 52 cards to the four foundation piles, building each suit from Ace to K
 
 func ptr(i int) *int { return &i }
 
+func openURL(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	}
+	if cmd != nil {
+		cmd.Start()
+	}
+}
+
 func centerWindow(win *widget.Window, content *widget.Container) {
 	w, h := content.PreferredSize()
 	screenW, screenH := ebiten.WindowSize()
@@ -496,6 +771,9 @@ func isDialogOpen() bool {
 	if aboutWindow != nil && toolbarUI.IsWindowOpen(aboutWindow) {
 		return true
 	}
+	if optionsWindow != nil && toolbarUI.IsWindowOpen(optionsWindow) {
+		return true
+	}
 	return false
 }
 
@@ -508,6 +786,9 @@ func closeDialogs() {
 	}
 	if aboutWindow != nil && toolbarUI.IsWindowOpen(aboutWindow) {
 		aboutWindow.Close()
+	}
+	if optionsWindow != nil && toolbarUI.IsWindowOpen(optionsWindow) {
+		optionsWindow.Close()
 	}
 }
 
@@ -527,7 +808,20 @@ func updateToolbar() {
 			if aboutWindow != nil && toolbarUI.IsWindowOpen(aboutWindow) && aboutContent != nil {
 				centerWindow(aboutWindow, aboutContent)
 			}
+			if optionsWindow != nil && toolbarUI.IsWindowOpen(optionsWindow) && optionsContent != nil {
+				centerWindow(optionsWindow, optionsContent)
+			}
 		}
+
+		// Disable buttons when game is over
+		gameEnded := uiRef.game.IsWon() || uiRef.gameOver
+		if undoBtn != nil {
+			undoBtn.GetWidget().Disabled = gameEnded
+		}
+		if hintBtn != nil {
+			hintBtn.GetWidget().Disabled = gameEnded
+		}
+
 		toolbarUI.Update()
 	}
 }
