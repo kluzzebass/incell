@@ -78,9 +78,12 @@ func NewUI() *UI {
 	settings := LoadSettings()
 	g := New(settings.IGetIt)
 
-	// Try to load saved game state
+	// Try to load saved game state, start fresh if invalid
 	if HasSavedState() {
-		g.LoadState()
+		if err := g.LoadState(); err != nil {
+			DeleteSavedState()
+			g.Deal(settings.IGetIt)
+		}
 	}
 
 	u := &UI{

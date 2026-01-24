@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"errors"
 	"incell/internal/assets"
 	"os"
 	"path/filepath"
@@ -48,6 +49,57 @@ func dataToCards(data []CardData) []Card {
 		cards[i] = Card{Rank: assets.Rank(d.Rank), Suit: assets.Suit(d.Suit)}
 	}
 	return cards
+}
+
+// Validate checks that the game state is valid (no duplicates, valid cards)
+func (s *GameState) Validate() error {
+	seen := make(map[CardData]bool)
+
+	// Check free cells
+	for _, fc := range s.FreeCells {
+		if fc == nil {
+			continue
+		}
+		if !isValidCard(fc) {
+			return errors.New("invalid card in free cell")
+		}
+		if seen[*fc] {
+			return errors.New("duplicate card")
+		}
+		seen[*fc] = true
+	}
+
+	// Check foundations
+	for _, foundation := range s.Foundations {
+		for _, card := range foundation {
+			if !isValidCard(&card) {
+				return errors.New("invalid card in foundation")
+			}
+			if seen[card] {
+				return errors.New("duplicate card")
+			}
+			seen[card] = true
+		}
+	}
+
+	// Check tableau
+	for _, pile := range s.Tableau {
+		for _, card := range pile {
+			if !isValidCard(&card) {
+				return errors.New("invalid card in tableau")
+			}
+			if seen[card] {
+				return errors.New("duplicate card")
+			}
+			seen[card] = true
+		}
+	}
+
+	return nil
+}
+
+func isValidCard(c *CardData) bool {
+	return c.Rank >= 1 && c.Rank <= 13 && c.Suit >= 0 && c.Suit <= 3
 }
 
 // statePath returns the path to the saved game state file
@@ -107,6 +159,11 @@ func (g *FreeCell) LoadState() error {
 
 	var state GameState
 	if err := json.Unmarshal(data, &state); err != nil {
+		return err
+	}
+
+	// Validate the state before applying
+	if err := state.Validate(); err != nil {
 		return err
 	}
 
