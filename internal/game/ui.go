@@ -76,8 +76,15 @@ type UI struct {
 // NewUI creates a new game UI
 func NewUI() *UI {
 	settings := LoadSettings()
+	g := New(settings.IGetIt)
+
+	// Try to load saved game state
+	if HasSavedState() {
+		g.LoadState()
+	}
+
 	u := &UI{
-		game:        New(settings.IGetIt),
+		game:        g,
 		autoMove:    settings.AutoMove,
 		iGetIt:      settings.IGetIt,
 		pendingAuto: true, // Check for auto-moves on first frame

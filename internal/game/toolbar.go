@@ -73,6 +73,7 @@ func buildToolbar(u *UI) {
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
 			// Skip confirmation if game is already over (won or lost)
 			if u.game.IsWon() || u.gameOver {
+				DeleteSavedState()
 				u.game.Deal(u.iGetIt)
 				u.gameOver = false
 				u.gameOverFade = 0
@@ -80,6 +81,7 @@ func buildToolbar(u *UI) {
 				u.tryAutoMove()
 			} else {
 				showConfirmDialog(u, "Start a new game?", func() {
+					DeleteSavedState()
 					u.game.Deal(u.iGetIt)
 					u.gameOver = false
 					u.gameOverFade = 0
@@ -176,6 +178,7 @@ func buildToolbar(u *UI) {
 		widget.ButtonOpts.TextPadding(padding),
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
 			showConfirmDialog(u, "Quit game?", func() {
+				u.game.SaveState()
 				os.Exit(0)
 			})
 		}),
@@ -442,6 +445,7 @@ func showOptionsDialogInternal(u *UI, isReopen bool) {
 		widget.ButtonOpts.ClickedHandler(func(args *widget.ButtonClickedEventArgs) {
 			optionsWindow.Close()
 			if iGetItChangedToTrue {
+				DeleteSavedState()
 				u.game.Deal(u.iGetIt)
 				u.gameOver = false
 				u.gameOverFade = 0
