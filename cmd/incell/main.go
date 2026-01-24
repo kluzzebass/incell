@@ -1,6 +1,7 @@
 package main
 
 import (
+	"image"
 	"log"
 
 	"incell/internal/assets"
@@ -13,6 +14,11 @@ func main() {
 	// Load card assets
 	if err := assets.LoadCards(); err != nil {
 		log.Fatalf("Failed to load card assets: %v", err)
+	}
+
+	// Load and set window icon
+	if icon, err := assets.LoadIcon(); err == nil {
+		ebiten.SetWindowIcon([]image.Image{icon})
 	}
 
 	// Create game UI
