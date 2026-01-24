@@ -142,7 +142,7 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
 
           # Create release if it doesn't exist
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Automated release"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Automated release" --latest
 
           # Upload macOS zip
           for f in artifacts/macos-build/Incell-*.zip; do
