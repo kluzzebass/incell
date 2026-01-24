@@ -4,6 +4,7 @@ import (
 	"bytes"
 	img "image"
 	"image/color"
+	"incell/internal/assets"
 	"incell/internal/version"
 	"math/rand"
 	"os"
@@ -494,6 +495,21 @@ func showAboutDialog(u *UI) {
 			widget.RowLayoutOpts.Padding(&widget.Insets{Left: 25, Right: 25, Top: 20, Bottom: 20}),
 		)),
 	)
+
+	// Icon (scaled down to 64x64)
+	if iconImg := assets.GetIconImage(); iconImg != nil {
+		scaledIcon := ebiten.NewImage(64, 64)
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(64.0/float64(iconImg.Bounds().Dx()), 64.0/float64(iconImg.Bounds().Dy()))
+		op.Filter = ebiten.FilterLinear
+		scaledIcon.DrawImage(iconImg, op)
+		content.AddChild(widget.NewGraphic(
+			widget.GraphicOpts.Image(scaledIcon),
+			widget.GraphicOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
+				Position: widget.RowLayoutPositionCenter,
+			})),
+		))
+	}
 
 	// Title
 	content.AddChild(widget.NewText(
