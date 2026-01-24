@@ -11,3 +11,4 @@
 
 ## Advanced
 - [x] Save/resume game on quit
+- [ ] Smarter stalemate detection (no useful moves remaining)
