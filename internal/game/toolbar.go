@@ -698,7 +698,12 @@ func openURL(url string) {
 
 func centerWindow(win *widget.Window, content *widget.Container) {
 	w, h := content.PreferredSize()
-	screenW, screenH := ebiten.WindowSize()
+	// Use uiRef dimensions which work in both native and WASM
+	screenW, screenH := uiRef.width, uiRef.height
+	if screenW == 0 || screenH == 0 {
+		// Fallback to window size for initial load
+		screenW, screenH = ebiten.WindowSize()
+	}
 	x := (screenW - w) / 2
 	y := (screenH - h) / 2
 	win.SetLocation(img.Rect(x, y, x+w, y+h))
@@ -808,7 +813,7 @@ func closeDialogs() {
 func updateToolbar() {
 	if toolbarUI != nil {
 		// Recenter windows if screen size changed
-		screenW, screenH := ebiten.WindowSize()
+		screenW, screenH := uiRef.width, uiRef.height
 		if screenW != lastScreenW || screenH != lastScreenH {
 			lastScreenW = screenW
 			lastScreenH = screenH
