@@ -26,8 +26,31 @@ jobs:
 
       - name: Build WASM
         run: |
+          mkdir -p dist
           GOOS=js GOARCH=wasm go build -o dist/incell.wasm ./cmd/incell
           cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" dist/
+          cat > dist/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Incell - FreeCell with a twist</title>
+              <style>
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  html, body { height: 100%; background: #1a1a2e; overflow: hidden; }
+              </style>
+          </head>
+          <body>
+              <script src="wasm_exec.js"></script>
+              <script>
+                  const go = new Go();
+                  WebAssembly.instantiateStreaming(fetch("incell.wasm"), go.importObject)
+                      .then(result => go.run(result.instance));
+              </script>
+          </body>
+          </html>
+          EOF
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
