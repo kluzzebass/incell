@@ -15,6 +15,10 @@ brew tap kluzzebass/tap
 brew install --cask incell
 ```
 
+### Windows / Linux
+
+Download the latest release from the [Releases](https://github.com/kluzzebass/incell/releases) page.
+
 ### From source
 
 Requires Go 1.23 or later.
