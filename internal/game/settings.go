@@ -2,9 +2,11 @@ package game
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
+
+	"incell/internal/storage"
 )
+
+const settingsKey = "settings"
 
 // Settings holds the game configuration
 type Settings struct {
@@ -20,23 +22,9 @@ func DefaultSettings() Settings {
 	}
 }
 
-// settingsPath returns the path to the settings file
-func settingsPath() (string, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(configDir, "incell", "settings.json"), nil
-}
-
-// LoadSettings loads settings from disk, or returns defaults if not found
+// LoadSettings loads settings from storage, or returns defaults if not found
 func LoadSettings() Settings {
-	path, err := settingsPath()
-	if err != nil {
-		return DefaultSettings()
-	}
-
-	data, err := os.ReadFile(path)
+	data, err := storage.Default().Read(settingsKey)
 	if err != nil {
 		return DefaultSettings()
 	}
@@ -49,23 +37,12 @@ func LoadSettings() Settings {
 	return settings
 }
 
-// SaveSettings saves settings to disk
+// SaveSettings saves settings to storage
 func SaveSettings(settings Settings) error {
-	path, err := settingsPath()
-	if err != nil {
-		return err
-	}
-
-	// Create directory if it doesn't exist
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return storage.Default().Write(settingsKey, data)
 }

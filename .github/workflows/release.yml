@@ -123,8 +123,30 @@ jobs:
           name: linux-build
           path: dist/Incell-*-linux-*
 
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build WASM
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          GOOS=js GOARCH=wasm go build -ldflags="-X incell/internal/version.Version=$VERSION" -o "dist/Incell-${VERSION}.wasm" ./cmd/incell
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-build
+          path: dist/*.wasm
+
   release:
-    needs: [build-macos, build-windows, build-linux]
+    needs: [build-macos, build-windows, build-linux, build-wasm]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -156,6 +178,11 @@ jobs:
 
           # Upload Linux binary
           for f in artifacts/linux-build/Incell-*-linux-*; do
+            [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber
+          done
+
+          # Upload WASM binary
+          for f in artifacts/wasm-build/*.wasm; do
             [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber
           done
 

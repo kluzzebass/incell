@@ -3,9 +3,9 @@ package game
 import (
 	"encoding/json"
 	"errors"
+
 	"incell/internal/assets"
-	"os"
-	"path/filepath"
+	"incell/internal/storage"
 )
 
 // GameState represents the serializable game state
@@ -102,22 +102,10 @@ func isValidCard(c *CardData) bool {
 	return c.Rank >= 1 && c.Rank <= 13 && c.Suit >= 0 && c.Suit <= 3
 }
 
-// statePath returns the path to the saved game state file
-func statePath() (string, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(configDir, "incell", "state.json"), nil
-}
+const stateKey = "state"
 
-// SaveState saves the current game state to disk
+// SaveState saves the current game state to storage
 func (g *Game) SaveState() error {
-	path, err := statePath()
-	if err != nil {
-		return err
-	}
-
 	state := GameState{}
 
 	for i, fc := range g.FreeCells {
@@ -132,27 +120,17 @@ func (g *Game) SaveState() error {
 		state.Tableau[i] = cardsToData(tableau)
 	}
 
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return storage.Default().Write(stateKey, data)
 }
 
-// LoadState loads a saved game state from disk
+// LoadState loads a saved game state from storage
 func (g *Game) LoadState() error {
-	path, err := statePath()
-	if err != nil {
-		return err
-	}
-
-	data, err := os.ReadFile(path)
+	data, err := storage.Default().Read(stateKey)
 	if err != nil {
 		return err
 	}
@@ -188,19 +166,10 @@ func (g *Game) LoadState() error {
 
 // HasSavedState returns true if there's a saved game state
 func HasSavedState() bool {
-	path, err := statePath()
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(path)
-	return err == nil
+	return storage.Default().Exists(stateKey)
 }
 
 // DeleteSavedState removes the saved game state
 func DeleteSavedState() error {
-	path, err := statePath()
-	if err != nil {
-		return err
-	}
-	return os.Remove(path)
+	return storage.Default().Delete(stateKey)
 }
