@@ -496,11 +496,11 @@ func showAboutDialog(u *UI) {
 		)),
 	)
 
-	// Icon (scaled down to 64x64)
+	// Icon (scaled down to 256x256)
 	if iconImg := assets.GetIconImage(); iconImg != nil {
-		scaledIcon := ebiten.NewImage(64, 64)
+		scaledIcon := ebiten.NewImage(256, 256)
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(64.0/float64(iconImg.Bounds().Dx()), 64.0/float64(iconImg.Bounds().Dy()))
+		op.GeoM.Scale(256.0/float64(iconImg.Bounds().Dx()), 256.0/float64(iconImg.Bounds().Dy()))
 		op.Filter = ebiten.FilterLinear
 		scaledIcon.DrawImage(iconImg, op)
 		content.AddChild(widget.NewGraphic(
@@ -510,14 +510,6 @@ func showAboutDialog(u *UI) {
 			})),
 		))
 	}
-
-	// Title
-	content.AddChild(widget.NewText(
-		widget.TextOpts.Text("Incell", &toolbarFace, color.RGBA{255, 215, 0, 255}),
-		widget.TextOpts.WidgetOpts(widget.WidgetOpts.LayoutData(widget.RowLayoutData{
-			Position: widget.RowLayoutPositionCenter,
-		})),
-	))
 
 	// Version
 	content.AddChild(widget.NewText(
