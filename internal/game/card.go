@@ -14,7 +14,7 @@ func (c Card) IsRed() bool {
 }
 
 // CanStackOnTableau returns true if this card can be placed on top of another card in a tableau
-// In FreeCell, cards must alternate colors and descend in rank
+// Cards must alternate colors and descend in rank
 func (c Card) CanStackOnTableau(other Card) bool {
 	// Must be opposite color
 	if c.IsRed() == other.IsRed() {

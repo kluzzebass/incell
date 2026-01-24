@@ -136,7 +136,7 @@ cask "incell" do
 
   url "https://github.com/$GITHUB_REPO/releases/download/v#{version}/$ZIP_NAME"
   name "Incell"
-  desc "FreeCell solitaire"
+  desc "Solitaire card game"
   homepage "https://github.com/$GITHUB_REPO"
 
   app "${APP_NAME}.app"

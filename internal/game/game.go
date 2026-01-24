@@ -27,8 +27,8 @@ type Position struct {
 	CardIdx  int // Index within the pile (for tableau)
 }
 
-// FreeCell represents the game state
-type FreeCell struct {
+// Game represents the game state
+type Game struct {
 	FreeCells   [NumFreeCells]*Card   // 4 free cells (nil if empty)
 	Foundations [NumFoundation][]Card // 4 foundation piles (one per suit)
 	Tableau     [NumTableau][]Card    // 8 tableau columns
@@ -49,15 +49,15 @@ type Move struct {
 	Cards []Card
 }
 
-// New creates a new FreeCell game
-func New(iGetIt bool) *FreeCell {
-	g := &FreeCell{}
+// New creates a new game
+func New(iGetIt bool) *Game {
+	g := &Game{}
 	g.Deal(iGetIt)
 	return g
 }
 
 // Deal shuffles and deals a new game
-func (g *FreeCell) Deal(iGetIt bool) {
+func (g *Game) Deal(iGetIt bool) {
 	// Reset state
 	g.FreeCells = [NumFreeCells]*Card{}
 	g.Foundations = [NumFoundation][]Card{}
@@ -100,13 +100,13 @@ func (g *FreeCell) Deal(iGetIt bool) {
 
 // MaxMovableCards returns the maximum number of cards that can be moved as a stack
 // Based on the number of empty free cells and empty tableau columns
-func (g *FreeCell) MaxMovableCards() int {
+func (g *Game) MaxMovableCards() int {
 	return g.MaxMovableCardsTo(-1)
 }
 
 // MaxMovableCardsTo returns the maximum number of cards that can be moved to a specific column
 // If destCol is an empty column, it's excluded from the count since we can't use it as intermediate storage
-func (g *FreeCell) MaxMovableCardsTo(destCol int) int {
+func (g *Game) MaxMovableCardsTo(destCol int) int {
 	emptyFreeCells := 0
 	for _, fc := range g.FreeCells {
 		if fc == nil {
@@ -145,7 +145,7 @@ func IsValidTableauStack(cards []Card) bool {
 
 // GetMovableCards returns the cards that can be moved from a tableau column
 // starting from the given index
-func (g *FreeCell) GetMovableCards(col, startIdx int) []Card {
+func (g *Game) GetMovableCards(col, startIdx int) []Card {
 	if col < 0 || col >= NumTableau || startIdx < 0 {
 		return nil
 	}
@@ -168,7 +168,7 @@ func (g *FreeCell) GetMovableCards(col, startIdx int) []Card {
 }
 
 // CanMoveToFreeCell checks if we can move a card to a free cell
-func (g *FreeCell) CanMoveToFreeCell(cellIdx int) bool {
+func (g *Game) CanMoveToFreeCell(cellIdx int) bool {
 	if cellIdx < 0 || cellIdx >= NumFreeCells {
 		return false
 	}
@@ -176,7 +176,7 @@ func (g *FreeCell) CanMoveToFreeCell(cellIdx int) bool {
 }
 
 // CanMoveToFoundation checks if a card can be moved to a foundation
-func (g *FreeCell) CanMoveToFoundation(card Card, foundationIdx int) bool {
+func (g *Game) CanMoveToFoundation(card Card, foundationIdx int) bool {
 	if foundationIdx < 0 || foundationIdx >= NumFoundation {
 		return false
 	}
@@ -189,7 +189,7 @@ func (g *FreeCell) CanMoveToFoundation(card Card, foundationIdx int) bool {
 }
 
 // CanMoveToTableau checks if cards can be moved to a tableau column
-func (g *FreeCell) CanMoveToTableau(cards []Card, colIdx int) bool {
+func (g *Game) CanMoveToTableau(cards []Card, colIdx int) bool {
 	if colIdx < 0 || colIdx >= NumTableau || len(cards) == 0 {
 		return false
 	}
@@ -209,7 +209,7 @@ func (g *FreeCell) CanMoveToTableau(cards []Card, colIdx int) bool {
 
 // FindFoundationForCard finds the foundation index where a card can be placed
 // Returns -1 if no valid foundation
-func (g *FreeCell) FindFoundationForCard(card Card) int {
+func (g *Game) FindFoundationForCard(card Card) int {
 	for i := 0; i < NumFoundation; i++ {
 		if g.CanMoveToFoundation(card, i) {
 			return i
@@ -219,7 +219,7 @@ func (g *FreeCell) FindFoundationForCard(card Card) int {
 }
 
 // MoveToFreeCell moves a single card to a free cell
-func (g *FreeCell) MoveToFreeCell(from Position, cellIdx int) bool {
+func (g *Game) MoveToFreeCell(from Position, cellIdx int) bool {
 	if !g.CanMoveToFreeCell(cellIdx) {
 		return false
 	}
@@ -253,7 +253,7 @@ func (g *FreeCell) MoveToFreeCell(from Position, cellIdx int) bool {
 }
 
 // MoveToFoundation moves a card to a foundation
-func (g *FreeCell) MoveToFoundation(from Position, foundationIdx int) bool {
+func (g *Game) MoveToFoundation(from Position, foundationIdx int) bool {
 	var card Card
 	switch from.Location {
 	case LocFreeCell:
@@ -293,7 +293,7 @@ func (g *FreeCell) MoveToFoundation(from Position, foundationIdx int) bool {
 }
 
 // MoveToTableau moves cards to a tableau column
-func (g *FreeCell) MoveToTableau(from Position, cards []Card, colIdx int) bool {
+func (g *Game) MoveToTableau(from Position, cards []Card, colIdx int) bool {
 	if !g.CanMoveToTableau(cards, colIdx) {
 		return false
 	}
@@ -325,7 +325,7 @@ func (g *FreeCell) MoveToTableau(from Position, cards []Card, colIdx int) bool {
 }
 
 // Undo undoes the last move
-func (g *FreeCell) Undo() bool {
+func (g *Game) Undo() bool {
 	if len(g.History) == 0 {
 		return false
 	}
@@ -359,7 +359,7 @@ func (g *FreeCell) Undo() bool {
 
 // AutoMoveToFoundation attempts to automatically move cards to foundations
 // Returns true if any card was moved
-func (g *FreeCell) AutoMoveToFoundation() bool {
+func (g *Game) AutoMoveToFoundation() bool {
 	moved := false
 
 	// Try free cells
@@ -399,7 +399,7 @@ func (g *FreeCell) AutoMoveToFoundation() bool {
 // Priority for stack in tableau: Tableau only (non-empty first, leftmost)
 // Priority for card in free cell: Foundation > Tableau (non-empty first, leftmost)
 // Cards on foundations cannot be moved
-func (g *FreeCell) FindBestDestination(from Position) *Position {
+func (g *Game) FindBestDestination(from Position) *Position {
 	var cards []Card
 
 	switch from.Location {
@@ -463,12 +463,12 @@ func (g *FreeCell) FindBestDestination(from Position) *Position {
 
 // findBestTableauDestination finds the best tableau column to move cards to
 // Prefers non-empty columns (smallest stack first), then empty columns (leftmost)
-func (g *FreeCell) findBestTableauDestination(cards []Card) *Position {
+func (g *Game) findBestTableauDestination(cards []Card) *Position {
 	return g.findBestTableauDestinationExcept(cards, -1)
 }
 
 // findBestTableauDestinationExcept finds the best tableau column, excluding one column
-func (g *FreeCell) findBestTableauDestinationExcept(cards []Card, excludeCol int) *Position {
+func (g *Game) findBestTableauDestinationExcept(cards []Card, excludeCol int) *Position {
 	// First pass: non-empty columns (smallest stack first)
 	bestCol := -1
 	bestSize := -1
@@ -502,7 +502,7 @@ func (g *FreeCell) findBestTableauDestinationExcept(cards []Card, excludeCol int
 }
 
 // IsWon returns true if the game is won (all cards on foundations)
-func (g *FreeCell) IsWon() bool {
+func (g *Game) IsWon() bool {
 	for _, pile := range g.Foundations {
 		if len(pile) != 13 {
 			return false
@@ -512,7 +512,7 @@ func (g *FreeCell) IsWon() bool {
 }
 
 // FindAllHints returns all positions that have valid moves
-func (g *FreeCell) FindAllHints() []Position {
+func (g *Game) FindAllHints() []Position {
 	var hints []Position
 	seen := make(map[Position]bool)
 
@@ -592,7 +592,7 @@ func (g *FreeCell) FindAllHints() []Position {
 }
 
 // HasValidMoves returns true if there are any valid moves available
-func (g *FreeCell) HasValidMoves() bool {
+func (g *Game) HasValidMoves() bool {
 	// Check if any free cell card can move
 	for i := 0; i < NumFreeCells; i++ {
 		if g.FreeCells[i] == nil {
@@ -653,7 +653,7 @@ func (g *FreeCell) HasValidMoves() bool {
 }
 
 // Select selects cards at the given position
-func (g *FreeCell) Select(pos Position) bool {
+func (g *Game) Select(pos Position) bool {
 	g.Selected = nil
 
 	switch pos.Location {
@@ -683,12 +683,12 @@ func (g *FreeCell) Select(pos Position) bool {
 }
 
 // ClearSelection clears the current selection
-func (g *FreeCell) ClearSelection() {
+func (g *Game) ClearSelection() {
 	g.Selected = nil
 }
 
 // TryMove attempts to move the selected cards to the given position
-func (g *FreeCell) TryMove(to Position) bool {
+func (g *Game) TryMove(to Position) bool {
 	if g.Selected == nil {
 		return false
 	}

@@ -112,7 +112,7 @@ func statePath() (string, error) {
 }
 
 // SaveState saves the current game state to disk
-func (g *FreeCell) SaveState() error {
+func (g *Game) SaveState() error {
 	path, err := statePath()
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (g *FreeCell) SaveState() error {
 }
 
 // LoadState loads a saved game state from disk
-func (g *FreeCell) LoadState() error {
+func (g *Game) LoadState() error {
 	path, err := statePath()
 	if err != nil {
 		return err

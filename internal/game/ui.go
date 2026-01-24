@@ -50,7 +50,7 @@ type CardWiggle struct {
 
 // UI handles the game rendering and input
 type UI struct {
-	game         *FreeCell
+	game         *Game
 	dragging     bool
 	dragStartX   int
 	dragStartY   int
